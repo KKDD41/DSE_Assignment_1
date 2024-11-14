@@ -20,13 +20,15 @@ def calculate_tot_claim_cnt_l180() -> None:
 
 
 def calculate_disb_bank_loan_wo_tbc_per_id(contracts_list: list[dict]) -> float:
+    not_tbc_claim_banks = ['LIZ', 'LOM', 'MKO', 'SUG', None]
+
     total_exposure_sum = 0.0
     for contract in contracts_list:
         try:
             if 'bank' in contract.keys():
-                if contract['contract_date'] is not None and contract['bank'] not in ['LIZ', 'LOM', 'MKO', 'SUG', None]:
+                if contract['contract_date'] is not None and contract['bank'] not in not_tbc_claim_banks:
                     contract_loan_summa = contract['loan_summa']
-                    if contract_loan_summa is not None and contract_loan_summa != '':
+                    if contract_loan_summa is not None:
                         total_exposure_sum += float(contract_loan_summa)
         except Exception as e:
             print(f"Contract processing fails: {e}")
@@ -50,7 +52,24 @@ def calculate_disb_bank_loan_wo_tbc(df: pd.DataFrame,
     return df
 
 
-def calculate_day_sinlastloan() -> None:
+def calculate_day_sinlastloan_per_id(contract_list: list[dict],
+                                     application_date: datetime.datetime) -> int | None:
+    last_claim_date = datetime.datetime.min
+    for contract in contract_list:
+        if contract['summa'] is not None:
+            claim_date = contract['claim_date']
+            if claim_date is not None:
+                last_claim_date = max(last_claim_date, claim_date)
+
+    if last_claim_date == datetime.datetime.min:
+        return None
+    return (application_date - last_claim_date).days
+
+
+
+def calculate_day_sinlastloan(df: pd.DataFrame,
+                              feature_column_name: str = 'day_sinlastloan',
+                              source: str = 'contracts') -> pd.DataFrame:
     """
     Description: Number of days since last loan.
     Source: contracts
@@ -61,10 +80,13 @@ def calculate_day_sinlastloan() -> None:
 
     :return:
     """
-    pass
+    df[feature_column_name] = df.apply(lambda x: calculate_day_sinlastloan_per_id(x[source], x['application_date']) if x[source] else None, axis=1)
+    return df
 
 
 if __name__ == "__main__":
     raw_df = load_data(RAW_DATA_DIR)
     raw_df = calculate_disb_bank_loan_wo_tbc(raw_df)
+    raw_df = calculate_day_sinlastloan(raw_df)
     print(raw_df.head(10))
+    print(raw_df.dtypes)

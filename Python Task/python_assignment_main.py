@@ -6,7 +6,20 @@ from utils.data_loading import load_data
 RAW_DATA_DIR = "./Python Task/data/data.csv"
 
 
-def calculate_tot_claim_cnt_l180() -> None:
+def calculate_tot_claim_cnt_l180_per_id(contract_list: list[dict],
+                                        current_date: datetime.datetime) -> int:
+    claims_l180 = set()
+    for contract in contract_list:
+        if contract['claim_date'] is not None:
+            if contract['claim_id'] not in claims_l180 and (current_date - contract['claim_date']).days < 180:
+                claims_l180.add(contract['claim_id'])
+
+    return len(claims_l180)
+
+
+def calculate_tot_claim_cnt_l180(df: pd.DataFrame,
+                                 feature_column_name: str = 'tot_claim_cnt_l180',
+                                 source: str = 'contracts') -> pd.DataFrame:
     """
     Description: number of claims for last 180 days
     Source: contracts
@@ -16,7 +29,10 @@ def calculate_tot_claim_cnt_l180() -> None:
 
     :return:
     """
-    pass
+    df[feature_column_name] = df[source].apply(
+        lambda x: calculate_tot_claim_cnt_l180_per_id(x, datetime.datetime.now(tz=None)) if x else None
+    )
+    return df
 
 
 def calculate_disb_bank_loan_wo_tbc_per_id(contracts_list: list[dict]) -> float:
@@ -66,7 +82,6 @@ def calculate_day_sinlastloan_per_id(contract_list: list[dict],
     return (application_date - last_claim_date).days
 
 
-
 def calculate_day_sinlastloan(df: pd.DataFrame,
                               feature_column_name: str = 'day_sinlastloan',
                               source: str = 'contracts') -> pd.DataFrame:
@@ -80,7 +95,10 @@ def calculate_day_sinlastloan(df: pd.DataFrame,
 
     :return:
     """
-    df[feature_column_name] = df.apply(lambda x: calculate_day_sinlastloan_per_id(x[source], x['application_date']) if x[source] else None, axis=1)
+    df[feature_column_name] = df.apply(
+        lambda x: calculate_day_sinlastloan_per_id(x[source], x['application_date']) if x[source] else None,
+        axis=1
+    )
     return df
 
 
@@ -88,5 +106,6 @@ if __name__ == "__main__":
     raw_df = load_data(RAW_DATA_DIR)
     raw_df = calculate_disb_bank_loan_wo_tbc(raw_df)
     raw_df = calculate_day_sinlastloan(raw_df)
+    raw_df = calculate_tot_claim_cnt_l180(raw_df)
     print(raw_df.head(10))
     print(raw_df.dtypes)

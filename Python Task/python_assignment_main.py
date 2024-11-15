@@ -3,7 +3,7 @@ import datetime
 import json
 from utils.data_loading import load_data
 
-RAW_DATA_DIR = "./Python Task/data/data.csv"
+RAW_DATA_DIR = "./Python Task/data/input_data/data.csv"
 
 
 def calculate_tot_claim_cnt_l180_per_id(contract_list: list[dict],

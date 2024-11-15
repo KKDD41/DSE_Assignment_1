@@ -1,6 +1,5 @@
 import pandas as pd
 import datetime
-import json
 from utils.data_loading import load_data
 
 RAW_DATA_DIR = "./Python Task/data/input_data/data.csv"

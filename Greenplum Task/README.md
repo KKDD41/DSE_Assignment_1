@@ -10,6 +10,14 @@ to up and run Greenplum locally. This is still under development.
 ## Modelling Considerations
 
 ### Tables Included
+
+**Customers** table containing details regarding customers. Since it is simple dimensional table,
+and likely will be used only within join on `customer_id` with `sales_transactions` table, the following 
+constrains were applied:
+- Heap table, as customers details like email or address could be modified (frequency unknown + 
+could be extanded with more 'dynamic' features like rating, nickname, etc.).
+- Primary key and btree-index on `customer_id` field as it would be included in hash-joins frequently.
+- Distribution by `customer_id` for even distribution of records between segments.
 ```commandline
 
 template1=# \d+ customers
@@ -26,6 +34,11 @@ Distributed by: (customer_id)
 Options: appendonly=false
 ```
 
+**Products** table with products list could be assumed as not too large in (terms of rows) and not frequently updated.
+In a same way it would be used in join with `sales_transactions` table mostly. Following constrains were applied:
+- Primary key on `product_id` field as join-column.
+- Heap table, since table is mutable and there is no need for AOT.
+- Distributed in a replicated way due to (assumption) small size. That would reduce network overhead during joins.
 ```commandline
 template1=# \d+ products
                                   Table "public.products"
@@ -41,6 +54,7 @@ Distributed Replicated
 Options: appendonly=false
 ```
 
+**Sales Transactions** table 
 ```commandline
 template1=# \d+ sales_transactions
                                                                         Append-Only Columnar Table "public.sales_transactions"
@@ -67,47 +81,7 @@ Child tables: sales_transactions_1_prt_extra,
               sales_transactions_1_prt_p1_10,
               sales_transactions_1_prt_p1_11,
               sales_transactions_1_prt_p1_12,
-              sales_transactions_1_prt_p1_13,
-              sales_transactions_1_prt_p1_14,
-              sales_transactions_1_prt_p1_15,
-              sales_transactions_1_prt_p1_16,
-              sales_transactions_1_prt_p1_17,
-              sales_transactions_1_prt_p1_18,
-              sales_transactions_1_prt_p1_19,
-              sales_transactions_1_prt_p1_2,
-              sales_transactions_1_prt_p1_20,
-              sales_transactions_1_prt_p1_21,
-              sales_transactions_1_prt_p1_22,
-              sales_transactions_1_prt_p1_23,
-              sales_transactions_1_prt_p1_24,
-              sales_transactions_1_prt_p1_25,
-              sales_transactions_1_prt_p1_26,
-              sales_transactions_1_prt_p1_27,
-              sales_transactions_1_prt_p1_28,
-              sales_transactions_1_prt_p1_29,
-              sales_transactions_1_prt_p1_3,
-              sales_transactions_1_prt_p1_30,
-              sales_transactions_1_prt_p1_31,
-              sales_transactions_1_prt_p1_32,
-              sales_transactions_1_prt_p1_33,
-              sales_transactions_1_prt_p1_34,
-              sales_transactions_1_prt_p1_35,
-              sales_transactions_1_prt_p1_36,
-              sales_transactions_1_prt_p1_37,
-              sales_transactions_1_prt_p1_38,
-              sales_transactions_1_prt_p1_39,
-              sales_transactions_1_prt_p1_4,
-              sales_transactions_1_prt_p1_40,
-              sales_transactions_1_prt_p1_41,
-              sales_transactions_1_prt_p1_42,
-              sales_transactions_1_prt_p1_43,
-              sales_transactions_1_prt_p1_44,
-              sales_transactions_1_prt_p1_45,
-              sales_transactions_1_prt_p1_46,
-              sales_transactions_1_prt_p1_47,
-              sales_transactions_1_prt_p1_48,
-              sales_transactions_1_prt_p1_5,
-              sales_transactions_1_prt_p1_6,
+              ...
               sales_transactions_1_prt_p1_7,
               sales_transactions_1_prt_p1_8,
               sales_transactions_1_prt_p1_9
@@ -130,48 +104,7 @@ Checksum: t
 Child tables: shipping_details_1_prt_extra,
               shipping_details_1_prt_p1_1,
               shipping_details_1_prt_p1_10,
-              shipping_details_1_prt_p1_11,
-              shipping_details_1_prt_p1_12,
-              shipping_details_1_prt_p1_13,
-              shipping_details_1_prt_p1_14,
-              shipping_details_1_prt_p1_15,
-              shipping_details_1_prt_p1_16,
-              shipping_details_1_prt_p1_17,
-              shipping_details_1_prt_p1_18,
-              shipping_details_1_prt_p1_19,
-              shipping_details_1_prt_p1_2,
-              shipping_details_1_prt_p1_20,
-              shipping_details_1_prt_p1_21,
-              shipping_details_1_prt_p1_22,
-              shipping_details_1_prt_p1_23,
-              shipping_details_1_prt_p1_24,
-              shipping_details_1_prt_p1_25,
-              shipping_details_1_prt_p1_26,
-              shipping_details_1_prt_p1_27,
-              shipping_details_1_prt_p1_28,
-              shipping_details_1_prt_p1_29,
-              shipping_details_1_prt_p1_3,
-              shipping_details_1_prt_p1_30,
-              shipping_details_1_prt_p1_31,
-              shipping_details_1_prt_p1_32,
-              shipping_details_1_prt_p1_33,
-              shipping_details_1_prt_p1_34,
-              shipping_details_1_prt_p1_35,
-              shipping_details_1_prt_p1_36,
-              shipping_details_1_prt_p1_37,
-              shipping_details_1_prt_p1_38,
-              shipping_details_1_prt_p1_39,
-              shipping_details_1_prt_p1_4,
-              shipping_details_1_prt_p1_40,
-              shipping_details_1_prt_p1_41,
-              shipping_details_1_prt_p1_42,
-              shipping_details_1_prt_p1_43,
-              shipping_details_1_prt_p1_44,
-              shipping_details_1_prt_p1_45,
-              shipping_details_1_prt_p1_46,
-              shipping_details_1_prt_p1_47,
-              shipping_details_1_prt_p1_48,
-              shipping_details_1_prt_p1_5,
+              ...
               shipping_details_1_prt_p1_6,
               shipping_details_1_prt_p1_7,
               shipping_details_1_prt_p1_8,

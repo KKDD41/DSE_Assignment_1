@@ -18,7 +18,7 @@ DISTRIBUTED REPLICATED;
 
 -- Sales Transactions Table
 CREATE TABLE sales_transactions (
-    transaction_id INTEGER PRIMARY KEY,
+    transaction_id SERIAL NOT NULL,
     customer_id INTEGER REFERENCES customers(customer_id),
     product_id INTEGER REFERENCES products(product_id),
     purchase_date DATE,
@@ -27,14 +27,14 @@ CREATE TABLE sales_transactions (
 DISTRIBUTED BY (transaction_id)
 PARTITION BY RANGE(purchase_date)
 (
-  PARTITION p1 START('2020-01-01'::DATE) END('2030-01-01'::DATE)
+  PARTITION p1 START('2020-01-01'::DATE) END('2024-01-01'::DATE)
   EVERY('1 month'::INTERVAL),
   DEFAULT PARTITION EXTRA
 );
 
 -- Shipping Details Table
 CREATE TABLE shipping_details (
-    transaction_id INTEGER PRIMARY KEY REFERENCES sales_transactions(transaction_id),
+    transaction_id INTEGER NOT NULL,
     shipping_date DATE,
     shipping_address VARCHAR(255),
     city VARCHAR(100),
@@ -43,7 +43,7 @@ CREATE TABLE shipping_details (
 DISTRIBUTED BY (transaction_id)
 PARTITION BY RANGE(shipping_date)
 (
-  PARTITION p1 START('2020-01-01'::DATE) END('2030-01-01'::DATE)
+  PARTITION p1 START('2020-01-01'::DATE) END('2024-01-01'::DATE)
   EVERY('1 month'::INTERVAL),
   DEFAULT PARTITION EXTRA
 );

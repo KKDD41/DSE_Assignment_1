@@ -11,7 +11,7 @@ JOIN
 GROUP BY
     DATE_TRUNC('month', st.purchase_date)
 ORDER BY
-    month;
+    month_of_transaction;
 
 -- Calculate the 3-month moving average of sales amount for each month. The moving
 -- average should be calculated based on the sales data from the previous 3 months

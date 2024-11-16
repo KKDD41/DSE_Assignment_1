@@ -13,6 +13,4 @@ RUN echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config
 RUN mkdir -p /gpdata/primary
 RUN chown -R gpadmin:gpadmin /gpdata
 
-EXPOSE 22
-
-# CMD ["/usr/sbin/sshd", "-D"]
+CMD ["/usr/sbin/sshd", "-D"]

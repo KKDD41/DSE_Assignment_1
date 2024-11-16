@@ -18,4 +18,4 @@ RUN chown gpadmin:gpadmin /home/gpadmin/gpic
 ADD hostlist_segonly /home/gpadmin/hostlist_segonly
 RUN chown gpadmin:gpadmin /home/gpadmin/hostlist_segonly
 
-# CMD ["/usr/sbin/sshd", "-D"]
+CMD ["/usr/sbin/sshd", "-D"]

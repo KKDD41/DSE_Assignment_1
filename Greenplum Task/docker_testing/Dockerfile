@@ -8,10 +8,14 @@ RUN repo_host="http://deb.cloudx.group/bigdata/repo" &&  \
 RUN sudo apt -y install gpdb-6
 
 RUN sudo apt -y install vim
+
 RUN echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config
 RUN mkdir -p /gpdata/master
-RUN mkdir -p /gpdata/mirror
-RUN chsh -s /bin/bash gpadmin
 RUN chown -R gpadmin:gpadmin /gpdata
 
-CMD ["/usr/sbin/sshd", "-D"]
+ADD gpic /home/gpadmin/gpic
+RUN chown gpadmin:gpadmin /home/gpadmin/gpic
+ADD hostlist_segonly /home/gpadmin/hostlist_segonly
+RUN chown gpadmin:gpadmin /home/gpadmin/hostlist_segonly
+
+# CMD ["/usr/sbin/sshd", "-D"]

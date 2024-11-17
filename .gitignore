@@ -162,3 +162,5 @@ cython_debug/
 #.idea/
 
 *pdf
+
+*/docker_testing/

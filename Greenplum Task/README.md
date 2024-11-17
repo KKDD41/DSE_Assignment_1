@@ -309,6 +309,3 @@ uted)
  Optimizer: Pivotal Optimizer (GPORCA)
  Execution time: 14.254 ms
 ```
-
-
-## Additional Notes

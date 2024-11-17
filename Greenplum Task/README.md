@@ -4,6 +4,7 @@
 
 - `ddl.sql` contains definitions of schema tables.
 - `queries.sql` contains analytical queries required in assignment.
+- `./data/` DML scripts for populating tables with sample data.
 - `./docker_testing/` folder containing files and sources required 
 to up and run Greenplum locally. This is still under development.
 

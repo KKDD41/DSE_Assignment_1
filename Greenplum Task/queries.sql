@@ -33,6 +33,4 @@ SELECT
     ms.total_sales,
     AVG(ms.total_sales) OVER (ORDER BY ms.month_of_transaction ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS three_month_moving_avg
 FROM
-    monthly_sales ms
-ORDER BY
-    ms.month_of_transaction;
+    monthly_sales ms;

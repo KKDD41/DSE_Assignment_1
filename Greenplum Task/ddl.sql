@@ -32,6 +32,7 @@ PARTITION BY RANGE(purchase_date)
   DEFAULT PARTITION EXTRA
 );
 CREATE INDEX sales_transactions_id_idx ON sales_transactions USING btree(transaction_id);
+CREATE INDEX sales_transactions_product_id_idx ON sales_transactions USING btree(product_id);
 
 -- Shipping Details Table
 CREATE TABLE shipping_details (

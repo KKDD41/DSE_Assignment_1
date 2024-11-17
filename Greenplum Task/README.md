@@ -99,6 +99,7 @@ PARTITION BY RANGE(purchase_date)
   DEFAULT PARTITION EXTRA
 );
 CREATE INDEX sales_transactions_id_idx ON sales_transactions USING btree(transaction_id); 
+CREATE INDEX sales_transactions_product_id_idx ON sales_transactions USING btree(product_id); 
 ```
 ```commandline
 template1=# \d+ sales_transactions
@@ -190,45 +191,93 @@ Here I did not cover compression applying, however it also could be a point of f
 ## Queries Explanation
 
 ### Sales amount and transactions count per month
+
+### SQL Query
+Calculate the total sales amount and the total number of transactions for each month.
+```sql
+SELECT
+    DATE_TRUNC('month', st.purchase_date) AS month_of_transaction,
+    COUNT(st.transaction_id) AS total_transactions,
+    SUM(p.price * st.quantity_purchased) AS total_sales_amount
+FROM
+    sales_transactions st
+JOIN
+    products p
+        ON st.product_id = p.product_id
+GROUP BY
+    DATE_TRUNC('month', st.purchase_date);
+```
+
+### Query Plan
 ```commandline
-                                                                               QUERY PLAN
-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Gather Motion 1:1  (slice2; segments: 1)  (cost=0.00..437.00 rows=1 width=24) (actual time=9.917..9.917 rows=0 loops=1)
-   Merge Key: (date_trunc('month'::text, (sales_transactions.purchase_date)::timestamp with time zone))
-   ->  Sort  (cost=0.00..437.00 rows=1 width=24) (never executed)
-         Sort Key: (date_trunc('month'::text, (sales_transactions.purchase_date)::timestamp with time zone))
-         Sort Method:  quicksort  Memory: 33kB
-         ->  GroupAggregate  (cost=0.00..437.00 rows=1 width=24) (never executed)
-               Group Key: (date_trunc('month'::text, (sales_transactions.purchase_date)::timestamp with time zone))
-               ->  Sort  (cost=0.00..437.00 rows=1 width=24) (never executed)
-                     Sort Key: (date_trunc('month'::text, (sales_transactions.purchase_date)::timestamp with time zone))
-                     Sort Method:  quicksort  Memory: 33kB
-                     ->  Result  (cost=0.00..437.00 rows=1 width=24) (never executed)
-                           ->  Nested Loop  (cost=0.00..437.00 rows=1 width=20) (never executed)
-                                 Join Filter: true
-                                 ->  Broadcast Motion 1:1  (slice1; segments: 1)  (cost=0.00..431.00 rows=1 width=16) (never executed)
-                                       ->  Sequence  (cost=0.00..431.00 rows=1 width=16) (never executed)
-                                             ->  Partition Selector for sales_transactions (dynamic scan id: 1)  (cost=10.00..100.00 rows=100 width=4) (never executed)
-                                                   Partitions selected: 49 (out of 49)
-                                             ->  Dynamic Seq Scan on sales_transactions (dynamic scan id: 1)  (cost=0.00..431.00 rows=1 width=16) (never executed)
-                                                   Partitions scanned:  49 (out of 49) .
-                                 ->  Index Scan using products_pkey on products  (cost=0.00..6.00 rows=1 width=8) (never executed)
-                                       Index Cond: (product_id = sales_transactions.product_id)
- Planning time: 35.383 ms
+                                                                            QUERY PLAN                                                                            
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Gather Motion 1:1  (slice2; segments: 1)  (cost=0.00..437.00 rows=1 width=24) (actual time=5.089..5.089 rows=0 loops=1)
+   ->  GroupAggregate  (cost=0.00..437.00 rows=1 width=24) (never executed)
+         Group Key: (date_trunc('month'::text, (sales_transactions.purchase_date)::timestamp with time zone))
+         ->  Sort  (cost=0.00..437.00 rows=1 width=24) (never executed)
+               Sort Key: (date_trunc('month'::text, (sales_transactions.purchase_date)::timestamp with time zone))
+               Sort Method:  quicksort  Memory: 33kB
+               ->  Result  (cost=0.00..437.00 rows=1 width=24) (never executed)
+                     // TODO: Achive hash-join instead
+                     ->  Nested Loop  (cost=0.00..437.00 rows=1 width=20) (never executed)
+                           Join Filter: true
+                           ->  Broadcast Motion 1:1  (slice1; segments: 1)  (cost=0.00..431.00 rows=1 width=16) (never executed)
+                                 ->  Sequence  (cost=0.00..431.00 rows=1 width=16) (never executed)
+                                       ->  Partition Selector for sales_transactions (dynamic scan id: 1)  (cost=10.00..100.00 rows=100 width=4) (never executed)
+                                             Partitions selected: 49 (out of 49)
+                                       ->  Dynamic Seq Scan on sales_transactions (dynamic scan id: 1)  (cost=0.00..431.00 rows=1 width=16) (never executed)
+                                             Partitions scanned:  49 (out of 49) .
+                           ->  Index Scan using products_pkey on products  (cost=0.00..6.00 rows=1 width=8) (never executed)
+                                 Index Cond: (product_id = sales_transactions.product_id)
+ Planning time: 18.329 ms
+   (slice0)    Executor memory: 168K bytes.
+   (slice1)    Executor memory: 1756K bytes (seg0).
+   (slice2)    Executor memory: 160K bytes (seg0).  Work_mem: 33K bytes max.
+ Memory used:  128000kB
 ```
 
 ### Moving-average of sales amount within 3 months interval
+
+#### SQL Query
+ Calculate the 3-month moving average of sales amount for each month. The moving
+ average should be calculated based on the sales data from the previous 3 months
+ (including the current month).
+```sql
+WITH monthly_sales AS (
+    SELECT
+        DATE_TRUNC('month', st.purchase_date) AS month_of_transaction,
+        SUM(p.price * st.quantity_purchased) AS total_sales
+    FROM
+        sales_transactions st
+    JOIN
+        products p
+            ON st.product_id = p.product_id
+    GROUP BY
+        DATE_TRUNC('month', st.purchase_date)
+)
+SELECT
+    ms.month_of_transaction,
+    ms.total_sales,
+    AVG(ms.total_sales) OVER (ORDER BY ms.month_of_transaction ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS three_month_moving_avg
+FROM
+    monthly_sales ms
+ORDER BY
+    ms.month_of_transaction;
+```
+
+#### Query Plan
 ```commandline
                                                                                         QUERY PLAN
-      
+
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------
- Sort  (cost=0.00..437.00 rows=1 width=24) (actual time=7.106..7.106 rows=0 loops=1)
+ Sort  (cost=0.00..437.00 rows=1 width=24) (actual time=7.748..7.748 rows=0 loops=1)
    Sort Key: (date_trunc('month'::text, (sales_transactions.purchase_date)::timestamp with time zone))
    Sort Method:  quicksort  Memory: 33kB
-   ->  WindowAgg  (cost=0.00..437.00 rows=1 width=24) (actual time=7.092..7.092 rows=0 loops=1)
+   ->  WindowAgg  (cost=0.00..437.00 rows=1 width=24) (actual time=7.732..7.732 rows=0 loops=1)
          Order By: (date_trunc('month'::text, (sales_transactions.purchase_date)::timestamp with time zone))
-         ->  Gather Motion 1:1  (slice2; segments: 1)  (cost=0.00..437.00 rows=1 width=16) (actual time=7.089..7.089 rows=0 loops=1)
+         ->  Gather Motion 1:1  (slice2; segments: 1)  (cost=0.00..437.00 rows=1 width=16) (actual time=7.731..7.731 rows=0 loops=1)
                Merge Key: (date_trunc('month'::text, (sales_transactions.purchase_date)::timestamp with time zone))
                ->  Result  (cost=0.00..437.00 rows=1 width=16) (never executed)
                      ->  Sort  (cost=0.00..437.00 rows=1 width=16) (never executed)
@@ -240,6 +289,7 @@ Here I did not cover compression applying, however it also could be a point of f
                                        Sort Key: (date_trunc('month'::text, (sales_transactions.purchase_date)::timestamp with time zone))
                                        Sort Method:  quicksort  Memory: 33kB
                                        ->  Result  (cost=0.00..437.00 rows=1 width=20) (never executed)
+                                             // TODO: Acheive hash-join instead
                                              ->  Nested Loop  (cost=0.00..437.00 rows=1 width=16) (never executed)
                                                    Join Filter: true
                                                    ->  Broadcast Motion 1:1  (slice1; segments: 1)  (cost=0.00..431.00 rows=1 width=12) (never executed)
@@ -251,7 +301,13 @@ uted)
                                                                      Partitions scanned:  49 (out of 49) .
                                                    ->  Index Scan using products_pkey on products  (cost=0.00..6.00 rows=1 width=8) (never executed)
                                                          Index Cond: (product_id = sales_transactions.product_id)
- Planning time: 17.480 ms
+ Planning time: 42.906 ms
+   (slice0)    Executor memory: 324K bytes.  Work_mem: 33K bytes max.
+   (slice1)    Executor memory: 1660K bytes (seg0).
+   (slice2)    Executor memory: 220K bytes (seg0).  Work_mem: 33K bytes max.
+ Memory used:  128000kB
+ Optimizer: Pivotal Optimizer (GPORCA)
+ Execution time: 14.254 ms
 ```
 
 

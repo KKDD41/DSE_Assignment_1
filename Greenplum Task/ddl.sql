@@ -1,3 +1,8 @@
+DROP TABLE shipping_details;
+DROP TABLE sales_transactions;
+DROP TABLE products;
+DROP TABLE customers;
+
 -- Customers Table
 CREATE TABLE customers (
     customer_id INTEGER PRIMARY KEY,

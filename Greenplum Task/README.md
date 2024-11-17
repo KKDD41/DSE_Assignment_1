@@ -122,6 +122,7 @@ Size | Description
 Checksum: t
 Indexes:
     "sales_transactions_id_idx" btree (transaction_id)
+    "sales_transactions_product_id_idx" btree (product_id)
 Foreign-key constraints:
     "sales_transactions_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
     "sales_transactions_product_id_fkey" FOREIGN KEY (product_id) REFERENCES products(product_id)

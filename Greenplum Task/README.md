@@ -309,3 +309,12 @@ uted)
  Optimizer: Pivotal Optimizer (GPORCA)
  Execution time: 14.254 ms
 ```
+
+## Additional Notes
+
+1. Seems that initial tables design (commit: `b4da2fe`) produces not optimized query plans with broadcast motion overhead
+and wrong type of join methods (two indexed fields are joined by nested loop instead hash join). 
+Approach as always worked fine in theory, however on practice Greenplum still chooses Nested Loop :).
+2. Later, will populate tables with rows and rerun queries. Unfortunately, quite huge time was spent to just start Greenplum locally.
+3. Foreign Keys constraints have no effect in Greenplum, however they have been added to DDL as a reminder,
+that they probably could be enforced by triggers ON INSERT / ON UPDATE (but only in case of a big desire).

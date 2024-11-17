@@ -31,6 +31,7 @@ PARTITION BY RANGE(purchase_date)
   EVERY('1 month'::INTERVAL),
   DEFAULT PARTITION EXTRA
 );
+CREATE INDEX sales_transactions_id_idx ON sales_transactions USING btree(transaction_id);
 
 -- Shipping Details Table
 CREATE TABLE shipping_details (
@@ -47,3 +48,4 @@ PARTITION BY RANGE(shipping_date)
   EVERY('1 month'::INTERVAL),
   DEFAULT PARTITION EXTRA
 );
+CREATE INDEX shipping_details_id_idx ON shipping_details USING btree(transaction_id);

@@ -18,6 +18,16 @@ constrains were applied:
 could be extanded with more 'dynamic' features like rating, nickname, etc.).
 - Primary key and btree-index on `customer_id` field as it would be included in hash-joins frequently.
 - Distribution by `customer_id` for even distribution of records between segments.
+- Non-generated `customer_id`, assuming it is a business key.
+```sql
+CREATE TABLE customers (
+    customer_id INTEGER PRIMARY KEY,
+    customer_name VARCHAR(255),
+    email_address VARCHAR(255),
+    country VARCHAR(100)
+) WITH (APPENDONLY=false)
+DISTRIBUTED BY (customer_id);
+```
 ```commandline
 
 template1=# \d+ customers
@@ -39,6 +49,16 @@ In a same way it would be used in join with `sales_transactions` table mostly. F
 - Primary key on `product_id` field as join-column.
 - Heap table, since table is mutable and there is no need for AOT.
 - Distributed in a replicated way due to (assumption) small size. That would reduce network overhead during joins.
+- Non-generated `product_id`, assuming it is a business key.
+```sql
+CREATE TABLE products (
+    product_id INTEGER PRIMARY KEY,
+    product_name VARCHAR(255),
+    price NUMERIC(10,2),
+    category VARCHAR(100)
+) WITH (APPENDONLY=false)
+DISTRIBUTED REPLICATED; 
+```
 ```commandline
 template1=# \d+ products
                                   Table "public.products"
@@ -54,33 +74,58 @@ Distributed Replicated
 Options: appendonly=false
 ```
 
-**Sales Transactions** table 
+**Sales Transactions** table could be considered as fact table of events (transactions) performed,
+which would be used for analysis of sales within certain time period. The following modelling 
+approaches were used:
+- AOT table, as it would act as append-only fact table.
+- Columnar orientation, as analytics would be done on particular set of columns.
+- `transaction_id` as generated key of type `SERIAL` with btree index on it (used for joins).
+- Distribution by `transaction_id` as it is the most appropriate key for even data distribution (data skew avoiding).
+- Partitioning by range with month interval, useful for both analytical queries for particular time-range,
+and deletion of old historical data.
+```sql
+CREATE TABLE sales_transactions (
+    transaction_id SERIAL NOT NULL,
+    customer_id INTEGER REFERENCES customers(customer_id),
+    product_id INTEGER REFERENCES products(product_id),
+    purchase_date DATE,
+    quantity_purchased INTEGER
+) WITH (APPENDONLY=true, orientation=column)
+DISTRIBUTED BY (transaction_id)
+PARTITION BY RANGE(purchase_date)
+(
+  PARTITION p1 START('2020-01-01'::DATE) END('2024-01-01'::DATE)
+  EVERY('1 month'::INTERVAL),
+  DEFAULT PARTITION EXTRA
+);
+CREATE INDEX sales_transactions_id_idx ON sales_transactions USING btree(transaction_id); 
+```
 ```commandline
 template1=# \d+ sales_transactions
                                                                         Append-Only Columnar Table "public.sales_transactions"
        Column       |  Type   |                                  Modifiers                                  | Storage | Stats target | Compression Type | Compression Level | Block 
-Size | Description 
+Size | Description
 --------------------+---------+-----------------------------------------------------------------------------+---------+--------------+------------------+-------------------+-------
 -----+-------------
  transaction_id     | integer | not null default nextval('sales_transactions_transaction_id_seq'::regclass) | plain   |              | none             | 0                 | 32768 
-     | 
+     |
  customer_id        | integer |                                                                             | plain   |              | none             | 0                 | 32768 
-     | 
+     |
  product_id         | integer |                                                                             | plain   |              | none             | 0                 | 32768 
-     | 
+     |
  purchase_date      | date    |                                                                             | plain   |              | none             | 0                 | 32768 
-     | 
+     |
  quantity_purchased | integer |                                                                             | plain   |              | none             | 0                 | 32768 
      |
 Checksum: t
+Indexes:
+    "sales_transactions_id_idx" btree (transaction_id)
 Foreign-key constraints:
     "sales_transactions_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
     "sales_transactions_product_id_fkey" FOREIGN KEY (product_id) REFERENCES products(product_id)
 Child tables: sales_transactions_1_prt_extra,
               sales_transactions_1_prt_p1_1,
               sales_transactions_1_prt_p1_10,
-              sales_transactions_1_prt_p1_11,
-              sales_transactions_1_prt_p1_12,
               ...
               sales_transactions_1_prt_p1_7,
               sales_transactions_1_prt_p1_8,
@@ -90,22 +135,48 @@ Partition by: (purchase_date)
 Options: appendonly=true, orientation=column
 ```
 
+**Shipping Details** table could be also considered as append-only fact table with similar 
+structure.
+- AOT table, as it would act as append-only fact table.
+- Columnar orientation, as analytics would be done on particular set of columns.
+- `transaction_id` as non-nullable integer referring to `sales_transactions` table.
+- Distribution by `transaction_id` as it is the most appropriate key for even data distribution (data skew avoiding).
+- Partitioning by range with month interval, useful for both analytical queries for particular time-range,
+and deletion of old historical data.
+```sql
+CREATE TABLE shipping_details (
+    transaction_id INTEGER NOT NULL,
+    shipping_date DATE,
+    shipping_address VARCHAR(255),
+    city VARCHAR(100),
+    country VARCHAR(100)
+) WITH (APPENDONLY=true, orientation=column)
+DISTRIBUTED BY (transaction_id)
+PARTITION BY RANGE(shipping_date)
+(
+  PARTITION p1 START('2020-01-01'::DATE) END('2024-01-01'::DATE)
+  EVERY('1 month'::INTERVAL),
+  DEFAULT PARTITION EXTRA
+);
+CREATE INDEX shipping_details_id_idx ON shipping_details USING btree(transaction_id);
+```
 ```commandline
-template1=# \d+ shipping_details;
+template1=# \d+ shipping_details
                                                Append-Only Columnar Table "public.shipping_details"
-      Column      |          Type          | Modifiers | Storage  | Stats target | Compression Type | Compression Level | Block Size | Description
+      Column      |          Type          | Modifiers | Storage  | Stats target | Compression Type | Compression Level | Block Size | Description 
 ------------------+------------------------+-----------+----------+--------------+------------------+-------------------+------------+-------------
- transaction_id   | integer                | not null  | plain    |              | none             | 0                 | 32768      |
- shipping_date    | date                   |           | plain    |              | none             | 0                 | 32768      |
- shipping_address | character varying(255) |           | extended |              | none             | 0                 | 32768      |
- city             | character varying(100) |           | extended |              | none             | 0                 | 32768      |
- country          | character varying(100) |           | extended |              | none             | 0                 | 32768      |
+ transaction_id   | integer                | not null  | plain    |              | none             | 0                 | 32768      | 
+ shipping_date    | date                   |           | plain    |              | none             | 0                 | 32768      | 
+ shipping_address | character varying(255) |           | extended |              | none             | 0                 | 32768      | 
+ city             | character varying(100) |           | extended |              | none             | 0                 | 32768      | 
+ country          | character varying(100) |           | extended |              | none             | 0                 | 32768      | 
 Checksum: t
+Indexes:
+    "shipping_details_id_idx" btree (transaction_id)
 Child tables: shipping_details_1_prt_extra,
               shipping_details_1_prt_p1_1,
               shipping_details_1_prt_p1_10,
               ...
-              shipping_details_1_prt_p1_6,
               shipping_details_1_prt_p1_7,
               shipping_details_1_prt_p1_8,
               shipping_details_1_prt_p1_9
@@ -114,11 +185,7 @@ Partition by: (shipping_date)
 Options: appendonly=true, orientation=column
 ```
 
-### Distribution
-
-### Partitioning
-
-### Compression
+Here I did not cover compression applying, however it also could be a point of further improvement.
 
 ## Queries Explanation
 
